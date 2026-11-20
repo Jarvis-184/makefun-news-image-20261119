@@ -1,286 +1,179 @@
 """
-draw.py - Full page composition for news-image-20261119 (entry.png)
+V4 renderer: broadsheet front page of Thursday 19 November 2026.
+Readability-first with breadth: 3 hero + 3 secondary + 4 compact cards, 18 curated extras.
+Facts come ONLY from draw_data.py (verified news-data.md). 1024x1024, flat colors, quantized <=256 colors.
 """
-
-import sys
-import os
-from PIL import Image, ImageDraw, ImageFont
-
-from draw_data import (
-    HEADER,
-    CARD_STORIES,
-    NUMBERS_BAND,
-    NUMBERS_BAND_RAW,
-    EXTRAS,
-    DATE_CHECK,
-    SOURCE_CREDITS_RAW
-)
+from PIL import Image, ImageDraw
 from draw_lib import (
-    get_font,
-    measure_text,
-    wrap_text,
-    fit_text_to_box,
-    draw_wrapped_text,
-    draw_rounded_rect,
-    draw_card,
-    COLORS
+    COLORS, get_font, measure_text, wrap_text, fit_text_to_box, draw_wrapped_text,
+    draw_rounded_rect, draw_ill_1_icj, draw_ill_2_summit, draw_ill_3_ipo,
+    draw_ill_5_crimea, draw_ill_7_riyadh, draw_ill_10_cop31, draw_ill_13_gta,
 )
 
-def render_page():
-    W, H = 1024, 1024
-    img = Image.new("RGB", (W, H), COLORS["bg_paper"])
+W, H = 1024, 1024
+MARGIN = 30
+INK = COLORS["ink"]
+GREY = COLORS["text_grey"]
+RED = COLORS["red_accent"]
+BORDER = COLORS["card_border"]
+PAPER = COLORS["bg_paper"]
+CHIP_COL = {"REPORTED": "#2E7D32", "CLAIM": "#B26A00", "FORECAST": "#1565C0"}
+
+def chip(draw, x, y, label, bg):
+    f = get_font("ExtraCondensedBold", 10)
+    tw, _ = measure_text(label, f, draw)
+    draw_rounded_rect(draw, [x, y, x + tw + 12, y + 15], radius=3, fill=bg)
+    draw.text((x + 6, y + 2), label, font=f, fill="#FFFFFF")
+
+def kicker(draw, x, y, text, status=None):
+    f = get_font("ExtraCondensedBold", 13)
+    draw.text((x, y), text, font=f, fill=RED)
+    if status:
+        kw, _ = measure_text(text, f, draw)
+        chip(draw, x + kw + 8, y, status, CHIP_COL[status])
+
+def draw_ill_clipped(base_img, ill_fn, box):
+    x, y, w, h = box
+    tmp = Image.new("RGB", (max(1, int(w)), max(1, int(h))), PAPER)
+    td = ImageDraw.Draw(tmp)
+    ill_fn(td, (0, 0, w, h))
+    base_img.paste(tmp, (int(x), int(y)))
+
+def draw_story_card(draw, bbox, ill_fn, kick, status, headline, standfirst, source, ill_h, head_start, head_min, head_lines, sf_size):
+    x, y, w, h = bbox
+    draw_rounded_rect(draw, [x, y, x + w, y + h], radius=4, fill="#FFFFFF", outline=BORDER)
+    if ill_fn:
+        draw_ill_clipped(BASE_IMG, ill_fn, (x + 2, y + 2, w - 4, ill_h))
+    cy = y + (ill_h + 8 if ill_fn else 10)
+    pad = 12
+    kicker(draw, x + pad, cy, kick, status)
+    cy += 21
+    hf, hlines, hlh = fit_text_to_box(headline, "ExtraCondensedBold", w - 2 * pad, head_lines * (head_start + 8), start_size=head_start, min_size=head_min, max_lines=head_lines, draw=draw)
+    cy = draw_wrapped_text(draw, hlines, hf, x + pad, cy, w - 2 * pad, hlh, color=INK, spacing=3)
+    cy += 4
+    sf, slines, slh = fit_text_to_box(standfirst, "Regular", w - 2 * pad, 2 * (sf_size + 4), start_size=sf_size, min_size=12, max_lines=2, draw=draw)
+    draw_wrapped_text(draw, slines, sf, x + pad, cy, w - 2 * pad, slh, color=GREY, spacing=2)
+    src_f = get_font("Italic", 11)
+    draw.text((x + pad, y + h - 18), source, font=src_f, fill=GREY)
+
+def main():
+    img = Image.new("RGB", (W, H), PAPER)
     draw = ImageDraw.Draw(img)
+    global BASE_IMG
+    BASE_IMG = img
 
-    margin = 12
-    curr_y = margin
+    # 1. MASTHEAD
+    strip_f = get_font("ExtraCondensedBold", 15)
+    draw.text((MARGIN, 10), "THE WORLD IN ONE DAY", font=strip_f, fill=RED)
+    rt = "ONE PAGE · EVERY STORY FROM THIS ONE DAY"
+    rw, _ = measure_text(rt, strip_f, draw)
+    draw.text((W - MARGIN - rw, 10), rt, font=strip_f, fill=GREY)
+    date_f = get_font("ExtraCondensedBold", 58)
+    draw.text((MARGIN - 2, 26), "Thursday 19 November 2026", font=date_f, fill=INK)
+    sf_f = get_font("Italic", 18)
+    draw.text((MARGIN, 94), "Trump, Xi and Putin share one table  ·  GTA VI launches to 24.58M copies  ·  Anthropic's record IPO debuts", font=sf_f, fill=GREY)
+    draw.line([(MARGIN, 122), (W - MARGIN, 122)], fill=INK, width=2)
 
-    # =========================================================================
-    # ROW 0: MASTHEAD (h ~ 84)
-    # =========================================================================
-    mh_y = curr_y
-    mh_w = W - 2 * margin
+    # 2. NUMBERS STRIP
+    stats = [("S&P 500", "-2.02%"), ("Nikkei", "-4.68%"), ("Brent", "$89.72"), ("Gold", "$3,729"), ("Bitcoin", "$62.2K"), ("Anthropic raise", "$81bn"), ("GTA VI day one", "24.58M"), ("Voyager 1", "26bn km")]
+    ny, nh = 130, 58
+    cw = (W - 2 * MARGIN - 7 * 6) / 8
+    for i, (lbl, val) in enumerate(stats):
+        cx = MARGIN + i * (cw + 6)
+        draw_rounded_rect(draw, [cx, ny, cx + cw, ny + nh], radius=3, fill="#EFECE6", outline=BORDER)
+        vf = get_font("ExtraCondensedBold", 21)
+        vw, _ = measure_text(val, vf, draw)
+        draw.text((cx + (cw - vw) / 2, ny + 5), val, font=vf, fill=INK)
+        lf = get_font("Regular", 10)
+        lw, _ = measure_text(lbl, lf, draw)
+        draw.text((cx + (cw - lw) / 2, ny + 37), lbl, font=lf, fill=GREY)
 
-    # Outer border line under masthead
-    # Red date chip left
-    chip_f = get_font("ExtraCondensedBold", 11)
-    chip_text = "NOV 19 / THU · 2026"
-    cw, ch = measure_text(chip_text, chip_f, draw)
-    draw_rounded_rect(draw, [margin, mh_y, margin + cw + 12, mh_y + 20], radius=3, fill=COLORS["red_accent"])
-    draw.text((margin + 6, mh_y + 3), chip_text, font=chip_f, fill="#FFFFFF")
-
-    # Kicker
-    kicker_f = get_font("ExtraCondensedBold", 11)
-    draw.text((margin + cw + 20, mh_y + 3), "THE DAY IN WORLD NEWS", font=kicker_f, fill=COLORS["text_grey"])
-
-    # Stat block right
-    stat_text = "48 STORIES / 7 REGIONS / ONE PAGE"
-    sw, _ = measure_text(stat_text, kicker_f, draw)
-    draw.text((W - margin - sw, mh_y + 3), stat_text, font=kicker_f, fill=COLORS["blue_accent"])
-
-    # Giant Main Title / Date
-    title_f = get_font("Black", 32)
-    draw.text((margin, mh_y + 24), "Thursday 19 November 2026", font=title_f, fill=COLORS["ink"])
-
-    # Subline
-    sub_f = get_font("Italic", 10.5)
-    sub_text = "Every story on this page happened, or was first reported, on Thursday 19 November 2026."
-    draw.text((margin, mh_y + 64), sub_text, font=sub_f, fill=COLORS["text_grey"])
-
-    curr_y = mh_y + 82
-    draw.line([(margin, curr_y), (W - margin, curr_y)], fill=COLORS["ink"], width=2)
-    curr_y += 4
-
-    # =========================================================================
-    # ROW 1: REGION STRIP (h ~ 20)
-    # =========================================================================
-    regions = [
-        ("EUROPE", "10", "#1E56A0"),
-        ("AMERICAS", "9", "#B85B14"),
-        ("ASIA", "8", "#D9381E"),
-        ("AFRICA", "3", "#2D6A4F"),
-        ("MIDDLE EAST", "6", "#8338EC"),
-        ("OCEANIA", "2", "#2B7A78"),
-        ("WORLD", "7", "#0F172A"),
+    # 3. HERO ROW
+    hy, hh = 198, 284
+    hw = (W - 2 * MARGIN - 2 * 16) / 3
+    heroes = [
+        (draw_ill_2_summit, "SHENZHEN · SUMMIT", "REPORTED", "Trump, Xi and Putin hold first three-way summit", "Four-point declaration: nuclear risk, UN reform, oil and gas, court limits. No Ukraine or Iran mention.", "AP · AFP"),
+        (draw_ill_13_gta, "GAMES · CULTURE", "REPORTED", "GTA VI out after 13-year wait; \"GTA flu\" hits work", "24.58M day-one copies (~$2.36bn); global leave +32% (Remote), UK sick +56%.", "Rockstar · Guardian · Independent"),
+        (draw_ill_3_ipo, "NASDAQ · MARKETS", "REPORTED", "Anthropic debuts up 17% after history's largest IPO", "$83 offer, opened ~$111.50, raised ~$81bn at a ~$1.5tn valuation.", "Reuters · CNBC"),
     ]
+    for i, (ill, k, st, hl, sf, src) in enumerate(heroes):
+        draw_story_card(draw, (MARGIN + i * (hw + 16), hy, hw, hh), ill, k, st, hl, sf, src, ill_h=136, head_start=28, head_min=21, head_lines=3, sf_size=14)
 
-    strip_w = W - 2 * margin
-    seg_w = strip_w / len(regions)
-    reg_f = get_font("ExtraCondensedBold", 10)
-
-    for idx, (reg_name, reg_cnt, reg_col) in enumerate(regions):
-        rx0 = margin + idx * seg_w
-        rx1 = margin + (idx + 1) * seg_w - 2
-        draw.rectangle([rx0, curr_y, rx1, curr_y + 18], fill=reg_col)
-        lbl = f"{reg_name} ({reg_cnt})"
-        lw, _ = measure_text(lbl, reg_f, draw)
-        draw.text((rx0 + (seg_w - lw) / 2, curr_y + 2), lbl, font=reg_f, fill="#FFFFFF")
-
-    curr_y += 22
-
-    # =========================================================================
-    # ROW 2: "THE DAY IN NUMBERS" BAND (h ~ 36)
-    # =========================================================================
-    num_box_h = 34
-    draw_rounded_rect(draw, [margin, curr_y, W - margin, curr_y + num_box_h], radius=3, fill="#EFECE6", outline=COLORS["card_border"])
-
-    # 6 selected key stat badges across band
-    stats = [
-        ("S&P 500", "-2.02%"),
-        ("Nikkei", "-4.68%"),
-        ("Brent", "$89.72"),
-        ("GTA VI", "24.58M"),
-        ("Anthropic IPO", "$81bn"),
-        ("Voyager 1", "26bn km"),
+    # 4. SECONDARY ROW
+    sy, sh = 492, 200
+    secs = [
+        (draw_ill_5_crimea, "CRIMEA · WAR", "REPORTED", "Ukraine hits Crimean Bridge third time in four days", "Russia halts traffic; span damage visible.", "AFP"),
+        (draw_ill_7_riyadh, "RIYADH · GULF", "CLAIM", "Houthi missile hits Riyadh's tallest tower", "PIF Tower windows broken; no injuries reported.", "AFP · SPA"),
+        (draw_ill_10_cop31, "COP31 · CLIMATE", "REPORTED", "COP31 draft drops fossil-fuel language", "African nations demand more climate finance.", "Reuters"),
     ]
+    for i, (ill, k, st, hl, sf, src) in enumerate(secs):
+        draw_story_card(draw, (MARGIN + i * (hw + 16), sy, hw, sh), ill, k, st, hl, sf, src, ill_h=56, head_start=21, head_min=16, head_lines=2, sf_size=12)
 
-    stat_start_x = margin + 8
-    stat_avail_w = W - 2 * margin - 16
-    stat_item_w = stat_avail_w / len(stats)
-
-    val_f = get_font("ExtraCondensedBold", 12)
-    lbl_f = get_font("Regular", 9)
-
-    for i, (label, val) in enumerate(stats):
-        sx = stat_start_x + i * stat_item_w
-        vw, _ = measure_text(val, val_f, draw)
-        lw, _ = measure_text(label, lbl_f, draw)
-        # Center in item box
-        draw.text((sx + (stat_item_w - vw) / 2, curr_y + 3), val, font=val_f, fill=COLORS["ink"])
-        draw.text((sx + (stat_item_w - lw) / 2, curr_y + 18), label, font=lbl_f, fill=COLORS["text_grey"])
-        if i < len(stats) - 1:
-            draw.line([(sx + stat_item_w - 1, curr_y + 4), (sx + stat_item_w - 1, curr_y + 30)], fill=COLORS["card_border"], width=1)
-
-    curr_y += num_box_h + 6
-
-    # =========================================================================
-    # ROWS 3-6: CARD GRID (14 CARDS)
-    # =========================================================================
-    grid_w = W - 2 * margin
-
-    # Row 3 (3 cards: 1, 2, 3) h ~ 152
-    r3_h = 152
-    c3_w = (grid_w - 2 * 6) / 3
-    for i in range(3):
-        card_data = CARD_STORIES[i]
-        cx = margin + i * (c3_w + 6)
-        draw_card(draw, card_data, (cx, curr_y, c3_w, r3_h))
-    curr_y += r3_h + 6
-
-    # Row 4 (3 cards: 4, 5, 6) h ~ 152
-    r4_h = 152
-    for i in range(3):
-        card_data = CARD_STORIES[3 + i]
-        cx = margin + i * (c3_w + 6)
-        draw_card(draw, card_data, (cx, curr_y, c3_w, r4_h))
-    curr_y += r4_h + 6
-
-    # Row 5 (4 cards: 7, 8, 9, 10) h ~ 128
-    r5_h = 128
-    c4_w = (grid_w - 3 * 5) / 4
-    for i in range(4):
-        card_data = CARD_STORIES[6 + i]
-        cx = margin + i * (c4_w + 5)
-        draw_card(draw, card_data, (cx, curr_y, c4_w, r5_h))
-    curr_y += r5_h + 5
-
-    # Row 6 (4 cards: 11, 12, 13, 14) h ~ 128
-    r6_h = 128
-    for i in range(4):
-        card_data = CARD_STORIES[10 + i]
-        cx = margin + i * (c4_w + 5)
-        draw_card(draw, card_data, (cx, curr_y, c4_w, r6_h))
-    curr_y += r6_h + 6
-
-    # =========================================================================
-    # ROW 7: BOTTOM SPLIT (MAP + EXTRAS) (h ~ 190)
-    # =========================================================================
-    bs_y = curr_y
-    bs_h = 190
-    map_w = 340
-    extras_w = grid_w - map_w - 8
-
-    # Left: Map Box
-    draw_rounded_rect(draw, [margin, bs_y, margin + map_w, bs_y + bs_h], radius=4, fill="#111827", outline=COLORS["card_border"])
-    map_title_f = get_font("ExtraCondensedBold", 11)
-    draw.text((margin + 8, bs_y + 6), "WHERE IT HAPPENED (STORY MAP)", font=map_title_f, fill="#38BDF8")
-
-    # Dotted Map Background Area
-    map_area_x = margin + 8
-    map_area_y = bs_y + 22
-    map_area_w = map_w - 16
-    map_area_h = bs_h - 30
-
-    # Draw grid of dots for world map feeling
-    for dx in range(map_area_x + 5, map_area_x + map_area_w - 5, 8):
-        for dy in range(map_area_y + 5, map_area_y + map_area_h - 5, 8):
-            draw.rectangle([dx, dy, dx + 1, dy + 1], fill="#1F2937")
-
-    # Story Pins (1..14) positioned approx on world coordinates
-    pins = [
-        (1, 0.72, 0.50),  # Myanmar
-        (2, 0.76, 0.42),  # Shenzhen
-        (3, 0.22, 0.38),  # New York/Nasdaq
-        (4, 0.20, 0.42),  # Wall St
-        (5, 0.58, 0.32),  # Crimea
-        (6, 0.50, 0.30),  # Berlin
-        (7, 0.60, 0.48),  # Riyadh
-        (8, 0.62, 0.52),  # Hormuz
-        (9, 0.56, 0.46),  # Gaza
-        (10, 0.55, 0.40), # Turkey
-        (11, 0.88, 0.22), # Space Mercury
-        (12, 0.92, 0.75), # Space Voyager
-        (13, 0.25, 0.52), # Miami GTA
-        (14, 0.15, 0.40), # California
+    # 5. COMPACT ROW (4 text cards)
+    ty, th = 700, 148
+    tw = (W - 2 * MARGIN - 3 * 12) / 4
+    minis = [
+        ("BERLIN · DIPLOMACY", "REPORTED", "European allies claim united line for Russia talks", "Kushner cites Article 5-style guarantees for Ukraine.", "Reuters"),
+        ("HORMUZ · ENERGY", "REPORTED", "Tanker ablaze after mine as Iran steps up attacks", "Senate rejects war-powers curb 51-48; Brent $89.72.", "Reuters · IEA"),
+        ("GAZA · CEASEFIRE", "REPORTED", "First Israeli ground op past the Yellow Line", "Army says a tunnel was dismantled; Hamas calls it a violation.", "AP"),
+        ("THE HAGUE · JUSTICE", "REPORTED", "World Court: Myanmar committed genocide", "9-6: ICJ holds Myanmar responsible for 2017 Rohingya genocide.", "ICJ · Reuters"),
     ]
+    for i, (k, st, hl, sf, src) in enumerate(minis):
+        draw_story_card(draw, (MARGIN + i * (tw + 12), ty, tw, th), None, k, st, hl, sf, src, ill_h=0, head_start=16, head_min=12, head_lines=3, sf_size=11)
 
-    pin_f = get_font("ExtraCondensedBold", 9)
-    for p_num, px_r, py_r in pins:
-        px = int(map_area_x + px_r * map_area_w)
-        py = int(map_area_y + py_r * map_area_h)
-        # Red pin circle
-        draw.ellipse([px - 7, py - 7, px + 7, py + 7], fill=COLORS["red_accent"], outline="#FFFFFF")
-        num_str = str(p_num)
-        nw, _ = measure_text(num_str, pin_f, draw)
-        draw.text((px - nw / 2, py - 5), num_str, font=pin_f, fill="#FFFFFF")
+    # 6. EXTRAS PANEL
+    ey, eh = 856, 128
+    draw_rounded_rect(draw, [MARGIN, ey, W - MARGIN, ey + eh], radius=4, fill="#FFFFFF", outline=BORDER)
+    et_f = get_font("ExtraCondensedBold", 15)
+    draw.text((MARGIN + 12, ey + 6), "ALSO ON THURSDAY 19 NOVEMBER", font=et_f, fill=RED)
+    extras = [
+        ("TECH", "Nvidia subpoenaed over China chip disclosures"),
+        ("SPACE", "BepiColombo enters Mercury orbit, second ever"),
+        ("SPACE", "Voyager 1 now a full light-day from Earth"),
+        ("ODISHA", "Cyclone Akvan nears India; landfall due Friday"),
+        ("DHAKA", "Hasina supporters torch property; ~300 arrests"),
+        ("DAKAR", "Dozens missing after migrant boat capsizes"),
+        ("CARACAS", "US and Venezuela sign military cooperation"),
+        ("NAIROBI", "US consortium wins Mrima Hill minerals deal"),
+        ("COPENHAGEN", "Parliament ratifies US-Greenland pact"),
+        ("GENEVA", "589 million children live in conflict zones"),
+        ("COX'S BAZAR", "Rohingya refugees cheer the ICJ verdict"),
+        ("GAZA", "Abu Safiya's detention extended 6 months"),
+        ("WASHINGTON", "Democrats grill DHS chief over FAA stop"),
+        ("MADRID", "Sánchez admits mistakes; Spain votes 29 Nov"),
+        ("CAIRO", "IMF deal unlocks $2.3bn for Egypt"),
+        ("JUNEAU", "Peltola wins Alaska seat; Democrats reach 56"),
+        ("BANGKOK", "Iran keeper Beiranvand named AFC's best"),
+        ("MANCHESTER", "Pochettino starts as Man United coach"),
+    ]
+    item_f = get_font("Regular", 12)
+    lead_f = get_font("ExtraCondensedBold", 12)
+    col_w = (W - 2 * MARGIN - 24) / 3
+    for i, (lead, txt) in enumerate(extras):
+        col, row = divmod(i, 6)
+        ix = MARGIN + 12 + col * (col_w + 12)
+        iy = ey + 28 + row * 16
+        draw.text((ix, iy), lead, font=lead_f, fill=INK)
+        lw, _ = measure_text(lead, lead_f, draw)
+        draw.text((ix + lw + 5, iy), txt, font=item_f, fill=GREY)
 
-    # Right: Extras Box (34 More Stories)
-    ext_x = margin + map_w + 8
-    draw_rounded_rect(draw, [ext_x, bs_y, W - margin, bs_y + bs_h], radius=4, fill=COLORS["card_bg"], outline=COLORS["card_border"])
-    ext_title_f = get_font("ExtraCondensedBold", 11)
-    draw.text((ext_x + 8, bs_y + 6), f"ALSO ON THURSDAY 19 NOVEMBER — {len(EXTRAS)} MORE STORIES", font=ext_title_f, fill=COLORS["red_accent"])
+    # 7. FOOTER / DATE CHECK
+    fy = 990
+    draw.line([(MARGIN, fy - 6), (W - MARGIN, fy - 6)], fill=BORDER, width=1)
+    dc_f = get_font("ExtraCondensedBold", 12)
+    draw.text((MARGIN, fy), "DATE CHECK", font=dc_f, fill=RED)
+    dw, _ = measure_text("DATE CHECK", dc_f, draw)
+    # hand-drawn check mark (font has no check glyph)
+    draw.line([(MARGIN + dw + 6, fy + 7), (MARGIN + dw + 10, fy + 11)], fill="#2E7D32", width=2)
+    draw.line([(MARGIN + dw + 10, fy + 11), (MARGIN + dw + 18, fy + 2)], fill="#2E7D32", width=2)
+    dct_f = get_font("Regular", 11)
+    draw.text((MARGIN + dw + 24, fy), "Every story here happened, or was first reported, on 19 November 2026. Gold/BTC: 19 Nov quotes (Reuters). Left out: EU loan (18th) · COP31 close (20th) · Akvan landfall (20th)", font=dct_f, fill=GREY)
+    draw.text((MARGIN, fy + 17), "Claims are attributed, not stated as fact · Sources: Reuters, AP, AFP, BBC, Euronews, ICJ, NASA, ESA, IMD · Original drawings", font=dct_f, fill=GREY)
 
-    # 2 columns for EXTRAS list
-    ext_col_w = (extras_w - 20) / 2
-    ext_f = get_font("Regular", 8)
-
-    half_count = (len(EXTRAS) + 1) // 2
-    for i, ext_item in enumerate(EXTRAS):
-        col = 0 if i < half_count else 1
-        row = i if col == 0 else (i - half_count)
-        
-        ex = ext_x + 8 + col * (ext_col_w + 8)
-        ey = bs_y + 22 + row * 9.2
-        
-        if ey + 8 < bs_y + bs_h - 4:
-            # Truncate line to col width
-            fitted_f, lines, _ = fit_text_to_box(ext_item, "Regular", ext_col_w, 10, start_size=8, min_size=7, max_lines=1, draw=draw)
-            if lines:
-                draw.text((ex, ey), lines[0], font=fitted_f, fill=COLORS["ink"])
-
-    curr_y = bs_y + bs_h + 5
-
-    # =========================================================================
-    # ROW 8: DATE-CHECK BOX (h ~ 32)
-    # =========================================================================
-    dc_h = 32
-    draw_rounded_rect(draw, [margin, curr_y, W - margin, curr_y + dc_h], radius=3, fill="#FFFBEB", outline="#FCD34D")
-
-    dc_title_f = get_font("ExtraCondensedBold", 10)
-    draw.text((margin + 6, curr_y + 4), "DATE CHECK (Left out on purpose - belongs to other days):", font=dc_title_f, fill="#B45309")
-
-    dc_body_f = get_font("Regular", 8.5)
-    dc_text = " · ".join(DATE_CHECK)
-    fitted_dc_f, dc_lines, _ = fit_text_to_box(dc_text, "Regular", grid_w - 12, 14, start_size=8.5, min_size=7, max_lines=1, draw=draw)
-    if dc_lines:
-        draw.text((margin + 6, curr_y + 17), dc_lines[0], font=fitted_dc_f, fill="#78350F")
-
-    curr_y += dc_h + 4
-
-    # =========================================================================
-    # ROW 9: FOOTER (h ~ 16)
-    # =========================================================================
-    ft_f = get_font("Regular", 8)
-    draw.text((margin, curr_y), f"Sources: {SOURCE_CREDITS_RAW}", font=ft_f, fill=COLORS["text_grey"])
-
-    right_ft = "Verified World News · Original Drawings"
-    rw, _ = measure_text(right_ft, ft_f, draw)
-    draw.text((W - margin - rw, curr_y), right_ft, font=ft_f, fill=COLORS["text_grey"])
-
-    # Save quantized 256 color PNG
-    output_path = "/downloads/makefun/build/repo/entry.png"
-    img_quant = img.convert("P", palette=Image.ADAPTIVE, colors=256)
-    img_quant.save(output_path, optimize=True)
-    print(f"Successfully generated {output_path} (size: {os.path.getsize(output_path)} bytes)")
+    img = img.quantize(colors=256, method=Image.MEDIANCUT).convert("RGB")
+    img.save("entry.png", optimize=True)
+    import os
+    print(f"Successfully generated {os.path.abspath('entry.png')} (size: {os.path.getsize('entry.png')} bytes)")
 
 if __name__ == "__main__":
-    render_page()
+    main()
