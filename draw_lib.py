@@ -271,34 +271,46 @@ def draw_ill_1_icj(draw, bbox):
 
 
 def draw_ill_2_summit(draw, bbox):
-    """2. Shenzhen Summit: Three flags / handshake / table."""
+    """2. Shenzhen Summit: US, China, Russia flags on poles over a round table."""
     x, y, w, h = bbox
     draw.rectangle([x, y, x + w, y + h], fill="#242933") # Dark Charcoal
 
-    # Three flag panels (US, CN, RU)
-    pw = w * 0.26
-    ph = h * 0.55
-    py = y + h * 0.22
+    pw = w * 0.27
+    ph = pw * 0.62  # flag proportions ~1.6:1
+    py = y + h * 0.14
 
-    # Flag 1: US (Left)
-    px1 = x + w * 0.08
-    draw.rectangle([px1, py, px1 + pw, py + ph], fill="#B22234")
-    draw.rectangle([px1, py, px1 + pw * 0.5, py + ph * 0.5], fill="#3C3B6E")
-    draw.rectangle([px1, py + ph * 0.5, px1 + pw, py + ph * 0.65], fill="#FFFFFF")
+    # Flag 1: United States (13 stripes + blue canton with stars)
+    px1 = x + w * 0.05
+    stripe_h = ph / 13
+    for i in range(13):
+        col = "#B22234" if i % 2 == 0 else "#FFFFFF"
+        draw.rectangle([px1, py + i * stripe_h, px1 + pw, py + (i + 1) * stripe_h], fill=col)
+    canton_w = pw * 0.4
+    canton_h = stripe_h * 7
+    draw.rectangle([px1, py, px1 + canton_w, py + canton_h], fill="#3C3B6E")
+    # stars: 5 rows x 4 cols of small dots
+    for r in range(4):
+        for c in range(5):
+            sx = px1 + canton_w * (0.12 + c * 0.19)
+            sy = py + canton_h * (0.14 + r * 0.24)
+            draw.ellipse([sx - 1.4, sy - 1.4, sx + 1.4, sy + 1.4], fill="#FFFFFF")
 
-    # Flag 2: CN (Center)
-    px2 = x + w * 0.37
+    # Flag 2: China (red field, large star + 4 small stars)
+    px2 = x + w * 0.365
     draw.rectangle([px2, py, px2 + pw, py + ph], fill="#DE2910")
-    draw_star(draw, (px2 + pw * 0.3, py + ph * 0.3), 6, 3, points=5, fill="#FFDE00")
+    draw_star(draw, (px2 + pw * 0.22, py + ph * 0.3), ph * 0.14, ph * 0.055, points=5, fill="#FFDE00")
+    for (ax, ay) in [(0.42, 0.12), (0.52, 0.26), (0.52, 0.46), (0.42, 0.58)]:
+        draw_star(draw, (px2 + pw * ax, py + ph * ay), ph * 0.05, ph * 0.02, points=5, fill="#FFDE00")
 
-    # Flag 3: RU (Right)
-    px3 = x + w * 0.66
-    draw.rectangle([px3, py, px3 + pw, py + ph], fill="#FFFFFF")
-    draw.rectangle([px3, py + ph * 0.33, px3 + pw, py + ph * 0.66], fill="#0039A6")
-    draw.rectangle([px3, py + ph * 0.66, px3 + pw, py + ph], fill="#D52B1E")
+    # Flag 3: Russia (white / blue / red horizontal tricolor)
+    px3 = x + w * 0.68
+    draw.rectangle([px3, py, px3 + pw, py + ph / 3], fill="#FFFFFF")
+    draw.rectangle([px3, py + ph / 3, px3 + pw, py + 2 * ph / 3], fill="#0039A6")
+    draw.rectangle([px3, py + 2 * ph / 3, px3 + pw, py + ph], fill="#D52B1E")
 
-    # Round summit table arc at bottom
-    draw.ellipse([x + w * 0.2, y + h * 0.65, x + w * 0.8, y + h * 1.1], fill="#1E232A", outline="#4C566A", width=2)
+    # Round summit table with rim, clearly below the flags
+    ty = y + h * 0.82
+    draw.ellipse([x + w * 0.3, ty, x + w * 0.7, ty + h * 0.16], fill="#3A4354", outline="#7A8499", width=2)
 
 
 def draw_ill_3_ipo(draw, bbox):
@@ -409,29 +421,74 @@ def draw_ill_6_berlin(draw, bbox):
 
 
 def draw_ill_7_riyadh(draw, bbox):
-    """7. Riyadh PIF Tower: Tall skyscraper silhouette with impact mark."""
+    """7. Riyadh PIF Tower: skyscraper with incoming missile + smoke trail."""
     x, y, w, h = bbox
-    draw.rectangle([x, y, x + w, y + h], fill="#221A28") # Dusk Sky
+    draw.rectangle([x, y, x + w, y + h], fill="#221A28")  # Dusk sky
 
-    cx = x + w * 0.5
-    # PIF Tower silhouette
-    tw = w * 0.24
-    ty0 = y + h * 0.12
-    ty1 = y + h * 0.90
-
-    # Tapered tower
+    cx = x + w * 0.44
+    # Tapered skyscraper silhouette with setbacks and lit windows
+    tw = w * 0.20
+    ty0 = y + h * 0.10
+    ty1 = y + h * 0.92
     tower_pts = [
-        (cx - tw * 0.3, ty0),
-        (cx + tw * 0.3, ty0),
-        (cx + tw * 0.5, ty1),
-        (cx - tw * 0.5, ty1),
+        (cx - tw * 0.28, ty0),
+        (cx + tw * 0.28, ty0),
+        (cx + tw * 0.38, y + h * 0.45),
+        (cx + tw * 0.52, ty1),
+        (cx - tw * 0.52, ty1),
+        (cx - tw * 0.38, y + h * 0.45),
     ]
-    draw.polygon(tower_pts, fill="#4A5568", outline="#718096")
+    draw.polygon(tower_pts, fill="#4A5568", outline="#8FA3BC", width=2)
+    # Crown edge highlight
+    draw.line([(cx - tw * 0.28, ty0), (cx + tw * 0.28, ty0)], fill="#A9BED6", width=2)
+    # Lit windows grid
+    wy = ty0 + h * 0.08
+    while wy < ty1 - h * 0.06:
+        frac = (wy - ty0) / (ty1 - ty0)
+        half = tw * (0.28 + 0.24 * frac)
+        wx = cx - half + 4
+        while wx < cx + half - 6:
+            draw.rectangle([wx, wy, wx + 3, wy + 4], fill="#E8D9A0")
+            wx += 8
+        wy += h * 0.10
 
-    # Impact burst mark on upper middle floor
-    imp_y = y + h * 0.38
-    draw.polygon([(cx - 14, imp_y - 6), (cx - 2, imp_y - 12), (cx + 12, imp_y - 4), (cx + 4, imp_y + 8), (cx - 8, imp_y + 6)], fill="#FFAB40")
-    draw.ellipse([cx - 4, imp_y - 4, cx + 4, imp_y + 4], fill="#FFD54F")
+    # Incoming missile diving at the tower from the upper right
+    m_start = (x + w * 0.88, y + h * 0.10)
+    m_end = (cx + tw * 0.10, y + h * 0.34)
+    # Bold smoke trail: thick pale line + puffs
+    draw.line([m_start, m_end], fill="#CFC8B8", width=5)
+    for i in range(1, 5):
+        txi = m_start[0] + (m_end[0] - m_start[0]) * (i / 5.0)
+        tyi = m_start[1] + (m_end[1] - m_start[1]) * (i / 5.0)
+        draw.ellipse([txi - 4, tyi - 4, txi + 4, tyi + 4], fill="#B8B0A0")
+    # Missile body (thick, with nose cone, fins, flame)
+    import math
+    ang = math.atan2(m_end[1] - m_start[1], m_end[0] - m_start[0])
+    nx, ny = math.cos(ang), math.sin(ang)
+    px, py = -ny, nx
+    bx, by = m_end[0] - nx * 16, m_end[1] - ny * 16
+    draw.polygon([
+        (m_end[0] + nx * 5, m_end[1] + ny * 5),          # nose tip
+        (bx + px * 4, by + py * 4),
+        (bx - px * 4, by - py * 4),
+    ], fill="#E8E2D4")
+    # Tail fins
+    fx, fy = bx - nx * 8, by - ny * 8
+    draw.polygon([(fx, fy), (fx + px * 9, fy + py * 9), (fx - nx * 6, fy - ny * 6)], fill="#C94F3D")
+    draw.polygon([(fx, fy), (fx - px * 9, fy - py * 9), (fx - nx * 6, fy - ny * 6)], fill="#C94F3D")
+    # Exhaust flame
+    draw.polygon([
+        (fx - nx * 6, fy - ny * 6),
+        (fx - nx * 16 + px * 3, fy - ny * 16 + py * 3),
+        (fx - nx * 20, fy - ny * 20),
+        (fx - nx * 16 - px * 3, fy - ny * 16 - py * 3),
+    ], fill="#FFAB40")
+
+    # Impact burst where the missile meets the tower
+    imp_x, imp_y = m_end[0], m_end[1]
+    draw.polygon([(imp_x - 16, imp_y - 6), (imp_x - 3, imp_y - 14), (imp_x + 13, imp_y - 6),
+                  (imp_x + 6, imp_y + 9), (imp_x - 9, imp_y + 7)], fill="#FFAB40")
+    draw.ellipse([imp_x - 5, imp_y - 5, imp_x + 5, imp_y + 5], fill="#FFD54F")
 
 
 def draw_ill_8_hormuz(draw, bbox):
@@ -557,22 +614,36 @@ def draw_ill_12_voyager(draw, bbox):
 
 
 def draw_ill_13_gta(draw, bbox):
-    """13. GTA VI: Controller silhouette + Roman numeral VI."""
+    """13. GTA VI: original coherent full-panel sunset scene."""
     x, y, w, h = bbox
-    # Neon Vice City Gradient background approximation
-    draw.rectangle([x, y, x + w, y + h], fill="#3B0764") # Purple
-    draw.rectangle([x, y + h * 0.5, x + w, y + h], fill="#831843") # Deep Pink
+    W, H = int(w), int(h)
 
-    cx, cy = x + w * 0.5, y + h * 0.48
+    # Sunset gradient: deep purple to vibrant orange
+    for i in range(H):
+        t = i / max(H - 1, 1)
+        r = int(46 + (255 - 46) * t)
+        g = int(26 + (158 - 26) * t)
+        b = int(71 + (94 - 71) * t)
+        draw.rectangle([x, y + i, x + w, y + i], fill=(r, g, b))
 
-    # Game controller outline
-    cw, ch = w * 0.55, h * 0.45
-    draw_rounded_rect(draw, [cx - cw * 0.5, cy - ch * 0.5, cx + cw * 0.5, cy + ch * 0.5], radius=10, fill="#1E1B4B", outline="#F43F5E", width=2)
+    # Sun
+    sun_r = H * 0.2
+    draw.ellipse([x + w * 0.5 - sun_r, y + H * 0.2 - sun_r, x + w * 0.5 + sun_r, y + H * 0.2 + sun_r], fill="#FFD54F")
 
-    # Roman numeral VI
-    f = get_font("ExtraCondensedBold", int(h * 0.42))
-    w_vi, _ = measure_text("VI", f, draw)
-    draw.text((cx - w_vi / 2, cy - h * 0.24), "VI", font=f, fill="#FACC15")
+    # Skyline silhouette
+    dark = "#1E1B4B"
+    base_y = y + H * 0.9
+    draw.rectangle([x, base_y - H * 0.3, x + w, base_y], fill=dark)
+    # Buildings
+    for bx in range(int(x), int(x + w), 20):
+        bh = (bx % 30) * H * 0.01 + H * 0.1
+        draw.rectangle([bx, base_y - bh, bx + 15, base_y], fill=dark)
+    
+    # Palm tree silhouette
+    px, py = x + w * 0.2, base_y - H * 0.1
+    draw.rectangle([px, py - H * 0.4, px + 5, py], fill=dark)
+    for ang in (-0.5, -0.2, 0.1, 0.4):
+        draw.arc([px - 40, py - H * 0.5 + ang * 20, px + 40, py - H * 0.2 + ang * 20], 200, 340, fill=dark, width=3)
 
 
 def draw_ill_14_nvidia(draw, bbox):
